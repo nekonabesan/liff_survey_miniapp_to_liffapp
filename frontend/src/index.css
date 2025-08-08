@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* カスタムベーススタイル */
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply font-sans text-gray-800 leading-relaxed bg-gray-50;
+  }
+
+  #root {
+    @apply min-h-screen flex flex-col;
+  }
+}
+
+/* カスタムコンポーネント */
+@layer components {
+  /* ローディング画面 */
+  .loading {
+    @apply fixed inset-0 bg-line-green-500 flex items-center justify-center z-50;
+  }
+
+  .loading-content {
+    @apply text-center text-white;
+  }
+
+  .spinner {
+    @apply w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4;
+  }
+
+  /* メインアプリ */
+  .app {
+    @apply max-w-2xl mx-auto bg-white min-h-screen;
+  }
+
+  .header {
+    @apply bg-gradient-to-br from-line-green-500 to-line-green-600 text-white px-5 py-6 text-center;
+  }
+
+  .header h1 {
+    @apply text-2xl font-bold mb-2;
+  }
+
+  .header p {
+    @apply text-sm opacity-90;
+  }
+
+  .main {
+    @apply p-5;
+  }
+
+  /* フォームスタイル */
+  .survey-form {
+    @apply flex flex-col gap-6;
+  }
+
+  .question-group {
+    @apply bg-gray-50 rounded-xl p-5 border border-gray-200 transition-colors;
+  }
+
+  .question-group.error {
+    @apply border-red-300 bg-red-50;
+  }
+
+  .question-label {
+    @apply block font-semibold mb-4 text-gray-800 text-base;
+  }
+
+  /* フォーム要素 */
+  .form-select {
+    @apply w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-base bg-white transition-colors focus:outline-none focus:border-line-green-500;
+  }
+
+  .radio-group {
+    @apply flex flex-col gap-3;
+  }
+
+  .radio-label {
+    @apply flex items-center cursor-pointer px-3 py-3 rounded-lg transition-colors hover:bg-gray-100;
+  }
+
+  .radio-input {
+    @apply mr-3 w-5 h-5 accent-line-green-500;
+  }
+
+  .form-textarea {
+    @apply w-full min-h-[100px] px-4 py-3 border-2 border-gray-300 rounded-lg text-base font-sans resize-y transition-colors focus:outline-none focus:border-line-green-500;
+  }
+
+  /* ボタン */
+  .button-group {
+    @apply mt-8;
+  }
+
+  .submit-button {
+    @apply w-full px-4 py-4 bg-gradient-to-r from-line-green-500 to-line-green-600 text-white border-0 rounded-xl text-lg font-semibold cursor-pointer transition-all hover:shadow-lg hover:shadow-line-green-500/30 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98];
+  }
+
+  .submit-button:not(:disabled):hover {
+    @apply -translate-y-0.5;
+  }
+
+  /* サンキューページ */
+  .thank-you {
+    @apply text-center px-5 py-10;
+  }
+
+  .thank-you-content h2 {
+    @apply text-line-green-500 mb-4 text-2xl;
+  }
+
+  .thank-you-content p {
+    @apply mb-8 text-gray-600 text-base;
+  }
+
+  .close-button {
+    @apply px-6 py-3 bg-gray-600 text-white border-0 rounded-lg text-base cursor-pointer transition-colors hover:bg-gray-700;
+  }
+
+  /* エラーメッセージ */
+  .error-message {
+    @apply bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg my-4 text-sm;
+  }
+
+  /* アニメーション */
+  .animate-fade-in {
+    @apply animate-fade-in;
+  }
+
+  .animate-slide-up {
+    @apply animate-slide-up;
+  }
+}
+
+/* レスポンシブ */
+@layer utilities {
+  @media (max-width: 768px) {
+    .main {
+      @apply px-4;
+    }
+    
+    .question-group {
+      @apply px-4;
+    }
+    
+    .header {
+      @apply px-4 py-5;
+    }
+    
+    .header h1 {
+      @apply text-xl;
+    }
+  }
+}
