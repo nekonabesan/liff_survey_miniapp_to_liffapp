@@ -29,7 +29,7 @@
   }
 
   .spinner {
-    @apply w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4;
+    @apply w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4;
   }
 
   /* メインアプリ */
