@@ -6,6 +6,20 @@ export interface LiffProfile {
   statusMessage?: string;
 }
 
+// ユーザー状態関連の型定義
+export interface UserStatusRequest {
+  userId: string;
+  displayName?: string;
+}
+
+export interface UserStatus {
+  userId: string;
+  hasResponse: boolean;
+  lastResponseId?: string;
+  lastResponseDate?: string;
+  responseCount: number;
+}
+
 // アンケート回答データの型定義
 export interface SurveyFormData {
   age: string;

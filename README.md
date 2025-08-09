@@ -12,21 +12,33 @@ liff-survey-project/
 │   │   ├── hooks/              # カスタムフック
 │   │   ├── types/              # TypeScript型定義
 │   │   ├── utils/              # ユーティリティ関数
+│   │   ├── services/           # API通信サービス
 │   │   ├── App.tsx             # メインアプリコンポーネント
 │   │   ├── main.tsx            # エントリーポイント
 │   │   └── index.css           # グローバルスタイル
 │   ├── public/                 # 静的ファイル
+│   ├── tests/e2e/              # Playwright E2Eテスト
 │   ├── package.json            # フロントエンド依存関係
 │   ├── tsconfig.json           # TypeScript設定
+│   ├── playwright.config.ts    # Playwright設定
 │   ├── vite.config.ts          # Vite設定
-│   ├── firebase.json           # Firebase Hosting設定
-│   ├── .firebaserc             # Firebase プロジェクト設定
+│   ├── .env.development        # 開発環境変数
+│   ├── .env.production         # 本番環境変数
 │   └── .env.example            # 環境変数サンプル
-├── backend/                     # バックエンド (FastAPI)
-│   ├── main.py                 # FastAPIメインアプリケーション
+├── functions/                   # Firebase Functions (Node.js)
+│   ├── index.js                # Cloud Functions エントリーポイント
+│   └── package.json            # Functions依存関係
+├── dist/                       # ビルド成果物（Firebase Hosting用）
+│   ├── assets/
+│   └── index.html
+├── backend/                     # 参考用・移行前実装
+│   ├── main.py                 # FastAPIメインアプリケーション（参考用）
+│   ├── simple_functions.py     # Flask移行実装（参考用）
 │   ├── requirements.txt        # Python依存関係
-│   ├── Dockerfile              # Docker設定
-│   └── .dockerignore           # Docker除外設定
+│   └── requirements-functions.txt # Cloud Functions用依存関係
+├── firebase.json               # Firebase設定
+├── firestore.rules             # Firestore セキュリティルール
+├── firestore.indexes.json      # Firestore インデックス設定
 ├── README.md                   # このファイル
 └── .gitignore                  # Git除外設定
 ```
@@ -50,189 +62,6 @@ liff-survey-project/
 - **Google Cloud Run**: サーバーレスコンテナプラットフォーム
 - **Docker**: コンテナ化
 - **Pytest**: テストフレームワーク
-
-## Firebase Hosting デプロイとLINE Developers連携
-
-### 1. Firebase プロジェクト作成とセットアップ
-
-#### 必要なツール
-- [Firebase CLI](https://firebase.google.com/docs/cli)
-- [Google Cloud Console](https://console.cloud.google.com/)
-- [LINE Developers Console](https://developers.line.biz/console/)
-
-#### Firebaseプロジェクト作成
-```bash
-cd frontend
-
-# Firebase CLIでログイン
-npx firebase login
-
-# 利用可能なプロジェクト一覧を確認
-npx firebase projects:list
-
-# 新しいFirebaseプロジェクトを作成
-npx firebase projects:create liff-survey-app-20250809-282a6 --display-name "LIFF Survey App 2025"
-
-# 作成されたプロジェクトを使用
-npx firebase use liff-survey-app-20250809-282a6
-```
-
-#### プロジェクト設定ファイルの更新
-```bash
-# .firebasercファイルの確認
-cat .firebaserc
-
-# firebase.jsonファイルの確認  
-cat firebase.json
-```
-
-### 2. Firebase Hosting デプロイ
-
-#### ビルドとデプロイ
-```bash
-cd frontend
-
-# プロジェクトをビルド
-npm run build
-
-# Firebase Hostingにデプロイ
-npx firebase deploy --only hosting
-```
-
-#### デプロイ成功後の確認事項
-- **Hosting URL**: `https://liff-survey-app-20250809-282a6.web.app`
-- **Firebase Console**: `https://console.firebase.google.com/project/liff-survey-app-20250809-282a6/overview`
-
-### 3. LINE Developers Console での設定
-
-#### 3.1 新しいチャネル作成
-1. [LINE Developers Console](https://developers.line.biz/console/) にアクセス
-2. 「新しいチャネルを作成」をクリック
-3. チャネルタイプ：**Messaging API** を選択
-4. 基本情報を入力：
-   - チャネル名: `LIFF Survey App`
-   - チャネル説明: `アンケートシステム`
-   - 大業種・小業種: 適切なカテゴリを選択
-
-#### 3.2 LIFF アプリの追加
-1. 作成したチャネルの管理画面にアクセス
-2. 「LIFF」タブをクリック
-3. 「追加」ボタンをクリック
-4. LIFF アプリ情報を入力：
-   - **LIFFアプリ名**: `Survey App`
-   - **サイズ**: `Full`
-   - **エンドポイントURL**: `https://liff-survey-app-20250809-282a6.web.app`
-   - **Scope**: `profile openid` (デフォルト)
-   - **ボットリンク機能**: `On` (推奨)
-   - **BLE feature**: `Off` (通常は不要)
-
-#### 3.3 LIFF ID の取得
-1. 作成されたLIFFアプリの詳細画面で **LIFF ID** をコピー
-2. 形式例: `1234567890-abcdefgh`
-
-### 4. 環境変数設定と再デプロイ
-
-#### 環境変数ファイル作成
-```bash
-cd frontend
-
-# 本番用環境変数ファイルを作成
-echo "VITE_LIFF_ID=YOUR_ACTUAL_LIFF_ID_HERE" > .env.production
-
-# 例：取得したLIFF IDで設定
-echo "VITE_LIFF_ID=1234567890-abcdefgh" > .env.production
-```
-
-#### LIFF ID設定後の再デプロイ
-```bash
-# 環境変数を含めて再ビルド
-npm run build
-
-# 再デプロイ
-npx firebase deploy --only hosting
-```
-
-### 5. 動作確認
-
-#### テスト方法
-1. **ブラウザでの確認**
-   - URL: `https://liff-survey-app-20250809-282a6.web.app`
-   - LIFF SDKエラーが表示されるが正常（LINE外のため）
-
-2. **LINEアプリでの確認**
-   - LIFF URLを開く: `line://app/YOUR_LIFF_ID`
-   - 又は LINE Developers Console の「Endpoint URL」からアクセス
-
-3. **友だち追加での確認**
-   - LINE Bot の QR コードをスキャン
-   - リッチメニューにLIFFアプリのリンクを設定
-
-### トラブルシューティング
-
-#### よくあるエラーと解決方法
-
-**1. `Error: Failed to create project because there is already a project with ID`**
-```bash
-# 解決方法：ユニークなプロジェクトIDを使用
-npx firebase projects:create liff-survey-app-$(date +%Y%m%d%H%M) --display-name "LIFF Survey App"
-```
-
-**2. `Request had HTTP Error: 404, Requested entity was not found`**
-```bash
-# 解決方法：Firebase Consoleで手動でプロジェクト作成
-# https://console.firebase.google.com/ でプロジェクト作成後
-npx firebase use your-project-id
-```
-
-**3. `Error: Failed to add Firebase to Google Cloud Platform project`**
-```bash
-# 解決方法：Firebase Consoleでの手動設定
-# 1. https://console.firebase.google.com/ にアクセス
-# 2. 「プロジェクトを追加」→「既存のGoogle Cloudプロジェクトを選択」
-# 3. Hostingを有効化
-```
-
-**4. `Permission denied` エラー**
-```bash
-# 解決方法：Firebase再ログイン
-npx firebase logout
-npx firebase login
-```
-
-**5. LIFF初期化エラー `LIFF IDが設定されていません`**
-```bash
-# 解決方法：環境変数の確認
-cat .env.production
-# VITE_LIFF_ID=your-actual-liff-id が設定されているか確認
-
-# 再ビルド・再デプロイ
-npm run build
-npx firebase deploy --only hosting
-```
-
-#### デバッグ用コマンド
-```bash
-# Firebase設定確認
-npx firebase projects:list
-cat .firebaserc
-cat firebase.json
-
-# ビルド内容確認
-ls -la dist/
-
-# ログ確認
-cat firebase-debug.log
-
-# 環境変数確認（ビルド時）
-npm run build -- --mode production
-```
-
-#### 外部リンク
-- **Firebase Console**: https://console.firebase.google.com/
-- **LINE Developers Console**: https://developers.line.biz/console/
-- **Firebase CLI Documentation**: https://firebase.google.com/docs/cli
-- **LIFF Documentation**: https://developers.line.biz/ja/docs/liff/overview/
-- **Google Cloud Console**: https://console.cloud.google.com/
 
 ## セットアップ
 

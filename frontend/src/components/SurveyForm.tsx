@@ -1,33 +1,37 @@
-import React, { useState } from 'react';
-
-interface LiffProfile {
-  userId: string;
-  displayName: string;
-  pictureUrl?: string;
-  statusMessage?: string;
-}
+import React, { useState, useEffect } from 'react';
+import { submitSurvey } from '@/services/api';
+import { LiffProfile, SurveyFormData, SurveyResponse } from '@/types';
 
 interface SurveyFormProps {
   userProfile: LiffProfile | null;
   onSubmitSuccess: () => void;
+  previousResponse?: SurveyResponse | null;
 }
 
-interface SurveyData {
-  age: string;
-  gender: string;
-  satisfaction: string;
-  comments: string;
-}
-
-const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess }) => {
-  const [formData, setFormData] = useState<SurveyData>({
+const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess, previousResponse }) => {
+  const [formData, setFormData] = useState<SurveyFormData>({
     age: '',
-    gender: '',
-    satisfaction: '',
-    comments: ''
+    gender: 'male',
+    frequency: 'daily',
+    satisfaction: '1',
+    feedback: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 前回の回答がある場合、フォームに初期値として設定
+  useEffect(() => {
+    if (previousResponse) {
+      setFormData({
+        age: previousResponse.age,
+        gender: previousResponse.gender,
+        frequency: previousResponse.frequency,
+        satisfaction: previousResponse.satisfaction,
+        feedback: previousResponse.feedback || ''
+      });
+    }
+  }, [previousResponse]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -40,28 +44,21 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     try {
-      // API call to submit survey data
-      const response = await fetch('/api/survey', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          userId: userProfile?.userId,
-          timestamp: new Date().toISOString(),
-        }),
-      });
+      // ユーザー情報を含めたアンケートデータを送信
+      const surveyData = {
+        ...formData,
+        userId: userProfile?.userId,
+        displayName: userProfile?.displayName
+      };
 
-      if (response.ok) {
-        onSubmitSuccess();
-      } else {
-        console.error('Survey submission failed');
-      }
-    } catch (error) {
-      console.error('Error submitting survey:', error);
+      await submitSurvey(surveyData);
+      onSubmitSuccess();
+    } catch (err: any) {
+      console.error('Survey submission failed:', err);
+      setError(err.message || 'アンケートの送信に失敗しました。もう一度お試しください。');
     } finally {
       setIsSubmitting(false);
     }
@@ -69,10 +66,24 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess })
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+      {previousResponse && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            💡 前回の回答を編集できます
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-1">
-            年齢
+            年齢層 <span className="text-red-500">*</span>
           </label>
           <select
             id="age"
@@ -94,7 +105,7 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess })
 
         <div>
           <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1">
-            性別
+            性別 <span className="text-red-500">*</span>
           </label>
           <select
             id="gender"
@@ -104,17 +115,34 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess })
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">選択してください</option>
             <option value="male">男性</option>
             <option value="female">女性</option>
             <option value="other">その他</option>
-            <option value="prefer-not-to-say">回答しない</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="frequency" className="block text-sm font-medium text-gray-700 mb-1">
+            利用頻度 <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="frequency"
+            name="frequency"
+            value={formData.frequency}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="daily">毎日</option>
+            <option value="weekly">週に数回</option>
+            <option value="monthly">月に数回</option>
+            <option value="rarely">あまり使わない</option>
           </select>
         </div>
 
         <div>
           <label htmlFor="satisfaction" className="block text-sm font-medium text-gray-700 mb-1">
-            満足度
+            満足度 <span className="text-red-500">*</span>
           </label>
           <select
             id="satisfaction"
@@ -124,40 +152,39 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess })
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">選択してください</option>
-            <option value="very-satisfied">とても満足</option>
-            <option value="satisfied">満足</option>
-            <option value="neutral">普通</option>
-            <option value="dissatisfied">不満</option>
-            <option value="very-dissatisfied">とても不満</option>
+            <option value="5">5 - とても満足</option>
+            <option value="4">4 - 満足</option>
+            <option value="3">3 - 普通</option>
+            <option value="2">2 - 不満</option>
+            <option value="1">1 - とても不満</option>
           </select>
         </div>
 
         <div>
-          <label htmlFor="comments" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-1">
             ご意見・ご要望
           </label>
           <textarea
-            id="comments"
-            name="comments"
-            value={formData.comments}
+            id="feedback"
+            name="feedback"
+            value={formData.feedback}
             onChange={handleChange}
             rows={4}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="ご自由にお書きください"
+            placeholder="ご自由にお書きください（任意）"
           />
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full py-2 px-4 rounded-md text-white font-medium ${
+          className={`w-full py-3 px-4 rounded-md text-white font-medium transition-colors ${
             isSubmitting
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500'
           }`}
         >
-          {isSubmitting ? '送信中...' : '送信'}
+          {isSubmitting ? '送信中...' : previousResponse ? '回答を更新' : '回答を送信'}
         </button>
       </form>
     </div>

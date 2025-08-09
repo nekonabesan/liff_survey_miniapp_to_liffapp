@@ -21,10 +21,20 @@ out/
 # Firebase
 .firebase/
 firebase-debug.log*
-.firebaserc
 
 # Google Cloud
 .gcloudignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.env
 
 # IDE
 .vscode/
@@ -48,6 +58,8 @@ logs/
 # Testing
 coverage/
 *.lcov
+test-results/
+playwright-report/
 
 # Temporary files
 tmp/

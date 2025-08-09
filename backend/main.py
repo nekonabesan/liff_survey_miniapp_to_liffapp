@@ -10,16 +10,34 @@ from contextlib import asynccontextmanager
 
 # Firestore クライアント（本番環境用）
 try:
+    # Cloud Functions環境では自動的に認証される
     from google.cloud import firestore
     db = firestore.Client()
     FIRESTORE_AVAILABLE = True
+    print("Firestore client initialized successfully")
 except ImportError:
     print("Warning: google-cloud-firestore not installed. Using mock storage.")
     FIRESTORE_AVAILABLE = False
     # モック用のインメモリストレージ
     mock_storage: List[Dict[str, Any]] = []
+except Exception as e:
+    print(f"Warning: Failed to initialize Firestore client: {e}. Using mock storage.")
+    FIRESTORE_AVAILABLE = False
+    # モック用のインメモリストレージ
+    mock_storage: List[Dict[str, Any]] = []
 
 # Pydanticモデル
+class UserStatusRequest(BaseModel):
+    userId: str = Field(..., description="LINEユーザーID")
+    displayName: Optional[str] = Field(None, description="ユーザー表示名")
+
+class UserStatus(BaseModel):
+    userId: str
+    hasResponse: bool
+    lastResponseId: Optional[str] = None
+    lastResponseDate: Optional[str] = None
+    responseCount: int = 0
+
 class SurveyRequest(BaseModel):
     age: str = Field(..., description="年齢層")
     gender: str = Field(..., pattern="^(male|female|other)$", description="性別")
@@ -99,6 +117,115 @@ async def health_check():
             "firestore_available": FIRESTORE_AVAILABLE
         }
     )
+
+# ユーザーの回答状態確認
+@app.post("/user/status", response_model=ApiResponse)
+async def check_user_status(user_request: UserStatusRequest):
+    """ユーザーの回答状態を確認"""
+    try:
+        user_id = user_request.userId
+        
+        if FIRESTORE_AVAILABLE:
+            # Firestoreでユーザーの回答を検索
+            query = db.collection('survey_responses').where('userId', '==', user_id).order_by('createdAt', direction=firestore.Query.DESCENDING)
+            docs = list(query.stream())
+            
+            if docs:
+                # 最新の回答を取得
+                latest_response = docs[0].to_dict()
+                user_status = UserStatus(
+                    userId=user_id,
+                    hasResponse=True,
+                    lastResponseId=docs[0].id,
+                    lastResponseDate=latest_response.get('createdAt'),
+                    responseCount=len(docs)
+                )
+            else:
+                user_status = UserStatus(
+                    userId=user_id,
+                    hasResponse=False,
+                    responseCount=0
+                )
+        else:
+            # モックストレージでユーザーの回答を検索
+            user_responses = [r for r in mock_storage if r.get('userId') == user_id]
+            
+            if user_responses:
+                # 最新の回答を取得（createdAtでソート）
+                latest_response = max(user_responses, key=lambda x: x.get('createdAt', ''))
+                user_status = UserStatus(
+                    userId=user_id,
+                    hasResponse=True,
+                    lastResponseId=latest_response.get('id'),
+                    lastResponseDate=latest_response.get('createdAt'),
+                    responseCount=len(user_responses)
+                )
+            else:
+                user_status = UserStatus(
+                    userId=user_id,
+                    hasResponse=False,
+                    responseCount=0
+                )
+
+        return ApiResponse(
+            success=True,
+            message="ユーザー状態を取得しました",
+            data=user_status.dict()
+        )
+
+    except Exception as e:
+        print(f"Error checking user status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ユーザー状態の確認に失敗しました"
+        )
+
+# ユーザーの最新回答取得
+@app.get("/user/{user_id}/latest-response", response_model=ApiResponse)
+async def get_user_latest_response(user_id: str):
+    """ユーザーの最新回答を取得"""
+    try:
+        if FIRESTORE_AVAILABLE:
+            # Firestoreから最新の回答を取得
+            query = db.collection('survey_responses').where('userId', '==', user_id).order_by('createdAt', direction=firestore.Query.DESCENDING).limit(1)
+            docs = list(query.stream())
+            
+            if docs:
+                data = docs[0].to_dict()
+                data['id'] = docs[0].id
+                response = SurveyResponse(**data)
+                return ApiResponse(
+                    success=True,
+                    data=response.dict()
+                )
+            else:
+                return ApiResponse(
+                    success=False,
+                    message="回答が見つかりませんでした"
+                )
+        else:
+            # モックストレージから最新の回答を取得
+            user_responses = [r for r in mock_storage if r.get('userId') == user_id]
+            
+            if user_responses:
+                latest_response = max(user_responses, key=lambda x: x.get('createdAt', ''))
+                response = SurveyResponse(**latest_response)
+                return ApiResponse(
+                    success=True,
+                    data=response.dict()
+                )
+            else:
+                return ApiResponse(
+                    success=False,
+                    message="回答が見つかりませんでした"
+                )
+
+    except Exception as e:
+        print(f"Error fetching user latest response: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="回答の取得に失敗しました"
+        )
 
 # アンケート回答の送信
 @app.post("/survey/submit", response_model=ApiResponse)

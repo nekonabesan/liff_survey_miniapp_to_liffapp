@@ -1,0 +1,5 @@
+# Cloud Functions用 requirements.txt（依存関係の競合を解決）
+functions-framework==3.8.0
+pydantic==2.5.0
+google-cloud-firestore==2.13.1
+starlette>=0.37.0
