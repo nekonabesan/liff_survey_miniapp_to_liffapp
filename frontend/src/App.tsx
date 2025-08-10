@@ -4,11 +4,11 @@ import SurveyForm from '@/components/SurveyForm';
 import ThankYou from '@/components/ThankYou';
 import LoadingScreen from '@/components/LoadingScreen';
 import ErrorMessage from '@/components/ErrorMessage';
-import { checkUserStatus, getUserLatestResponse } from '@/services/api';
+import { checkUserStatus, getUserLatestResponse, setIDTokenForAPI } from '@/services/api';
 import { UserStatus, SurveyResponse } from '@/types';
 
 function App() {
-  const { isLoading, error, profile, isLoggedIn } = useLiff();
+  const { isLoading, error, profile, isLoggedIn, getIDToken } = useLiff();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [previousResponse, setPreviousResponse] = useState<SurveyResponse | null>(null);
@@ -20,35 +20,75 @@ function App() {
     const fetchUserStatus = async () => {
       if (!profile || !isLoggedIn) return;
 
+      // 開発環境ではAPIを呼ばずにモック状態を設定
+      const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+      
+      if (isDevelopment) {
+        console.log('Development mode: Skipping API calls, using mock data');
+        setUserStatus({ 
+          userId: profile.userId,
+          hasResponse: false, 
+          lastResponseDate: undefined,
+          responseCount: 0
+        });
+        setStatusLoading(false);
+        return;
+      }
+
       try {
         setStatusLoading(true);
         
-        // ユーザーの回答状態を確認
-        const status = await checkUserStatus({
+        // IDTokenを取得してAPIクライアントに設定
+        const idToken = await getIDToken();
+        if (idToken) {
+          setIDTokenForAPI(idToken);
+        }
+        
+        // 開発環境では5秒でタイムアウトさせる
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        );
+        
+        const statusPromise = checkUserStatus({
           userId: profile.userId,
           displayName: profile.displayName
         });
+        
+        // レースコンディション: タイムアウトまたは正常なレスポンス
+        const status = await Promise.race([statusPromise, timeoutPromise]) as UserStatus;
         
         setUserStatus(status);
 
         // 回答済みの場合、最新の回答を取得
         if (status.hasResponse) {
-          const latestResponse = await getUserLatestResponse(profile.userId);
-          if (latestResponse) {
-            setPreviousResponse(latestResponse);
-            setShowPreviousResponseConfirm(true);
+          try {
+            const latestResponse = await getUserLatestResponse(profile.userId);
+            if (latestResponse) {
+              setPreviousResponse(latestResponse);
+              setShowPreviousResponseConfirm(true);
+            }
+          } catch (responseError) {
+            console.warn('Failed to fetch previous response:', responseError);
+            // 前回の回答取得に失敗してもユーザー状態は保持
           }
         }
       } catch (error) {
         console.error('Failed to fetch user status:', error);
-        // エラーが発生しても、アンケートフォームは表示させる
+        // エラーが発生した場合も、ローディングを解除してフォームを表示
+        // 開発環境では特にAPIが利用できない場合があるため
+        setUserStatus({ 
+          userId: profile.userId,
+          hasResponse: false, 
+          lastResponseDate: undefined,
+          responseCount: 0
+        });
       } finally {
         setStatusLoading(false);
       }
     };
 
     fetchUserStatus();
-  }, [profile, isLoggedIn]);
+  }, [profile?.userId, isLoggedIn]); // getIDTokenを依存関係から除外
 
   const handleSubmitSuccess = () => {
     setIsSubmitted(true);

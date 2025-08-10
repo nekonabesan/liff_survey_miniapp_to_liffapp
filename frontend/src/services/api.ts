@@ -13,14 +13,14 @@ const apiClient = axios.create({
   },
 });
 
-// リクエストインターセプター（必要に応じてトークンを追加）
+// リクエストインターセプター（IDTokenを自動付与）
 apiClient.interceptors.request.use(
   (config) => {
-    // 必要に応じて認証トークンを追加
-    // const token = localStorage.getItem('authToken');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    // IDTokenを取得してヘッダーに追加
+    const idToken = getStoredIDToken();
+    if (idToken) {
+      config.headers.Authorization = `Bearer ${idToken}`;
+    }
     return config;
   },
   (error) => {
@@ -35,8 +35,9 @@ apiClient.interceptors.response.use(
     console.error('API Error:', error);
     
     if (error.response?.status === 401) {
-      // 認証エラーの場合の処理
-      console.warn('認証エラーが発生しました');
+      // 認証エラーの場合、IDTokenをクリア
+      clearStoredIDToken();
+      console.warn('認証エラー: IDTokenが無効です');
     } else if (error.response?.status >= 500) {
       // サーバーエラーの場合の処理
       console.error('サーバーエラーが発生しました');
@@ -45,6 +46,21 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// IDTokenを一時的に保存・取得する関数
+let temporaryIDToken: string | null = null;
+
+export const setIDTokenForAPI = (idToken: string) => {
+  temporaryIDToken = idToken;
+};
+
+export const getStoredIDToken = (): string | null => {
+  return temporaryIDToken;
+};
+
+export const clearStoredIDToken = () => {
+  temporaryIDToken = null;
+};
 
 // ユーザー状態確認
 export const checkUserStatus = async (userRequest: UserStatusRequest): Promise<UserStatus> => {

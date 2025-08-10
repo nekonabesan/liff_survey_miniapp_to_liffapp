@@ -1,0 +1,133 @@
+services:
+  # フロントエンド (React + Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+      - "24678:24678" # Vite HMR
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_LIFF_ID=${VITE_LIFF_ID:-2007896892-VeJZPJEJ}
+      - VITE_API_BASE_URL=http://localhost:8001
+    depends_on:
+      - backend
+    stdin_open: true
+    tty: true
+    networks:
+      - app-network
+
+  # バックエンド API (Firebase Functions ローカル)
+  backend:
+    build:
+      context: ./functions
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+      - "9229:9229" # Node.js デバッグポート
+    volumes:
+      - ./functions:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=8000
+      - FIRESTORE_EMULATOR_HOST=firestore:8080
+    depends_on:
+      - firestore
+    stdin_open: true
+    tty: true
+    networks:
+      - app-network
+
+  # Pythonバックエンド API (テスト用)
+  python-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+      - PORT=8000
+      - FIRESTORE_EMULATOR_HOST=firestore:8080
+      - PROJECT_ID=demo-project
+    depends_on:
+      - firestore
+    networks:
+      - app-network
+
+  # Firestore エミュレータ
+  firestore:
+    image: andreysenov/firebase-tools:latest
+    ports:
+      - "8080:8080"  # Firestore
+      - "4000:4000"  # Firebase UI
+      - "9099:9099"  # Firebase Auth (将来用)
+    volumes:
+      - ./firebase-data:/data
+      - ./:/workspace
+    working_dir: /workspace
+    command: >
+      sh -c "
+        firebase emulators:start --only firestore --project demo-project
+      "
+    environment:
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+    networks:
+      - app-network
+
+  # フロントエンドテスト実行環境 (Vitest + Playwright)
+  test-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CI=true
+      - VITE_API_BASE_URL=http://backend:8000
+    depends_on:
+      - frontend
+      - backend
+    profiles:
+      - test
+    networks:
+      - app-network
+
+  # バックエンドAPIテスト実行環境 (pytest)
+  test-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - TEST_BASE_URL=http://python-backend:8080
+      - FIRESTORE_EMULATOR_HOST=firestore:8080
+    depends_on:
+      - python-backend
+      - firestore
+    profiles:
+      - test
+    command: ["python", "-m", "pytest", "-v", "--tb=short"]
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  frontend_node_modules:
+  backend_node_modules:
+  firebase_data:

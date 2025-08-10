@@ -47,6 +47,19 @@ const SurveyForm: React.FC<SurveyFormProps> = ({ userProfile, onSubmitSuccess, p
     setError(null);
 
     try {
+      // 開発環境では実際のAPIを呼ばずに成功させる
+      const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+      
+      if (isDevelopment) {
+        console.log('Development mode: Simulating survey submission');
+        console.log('Survey data:', formData);
+        
+        // 開発環境では2秒待機してから成功
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        onSubmitSuccess();
+        return;
+      }
+
       // ユーザー情報を含めたアンケートデータを送信
       const surveyData = {
         ...formData,

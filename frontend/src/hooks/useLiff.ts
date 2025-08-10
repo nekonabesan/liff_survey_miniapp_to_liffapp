@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LiffProfile } from '@/types';
+import { liffService } from '@/services/liffService';
 
 declare global {
   interface Window {
@@ -19,30 +20,49 @@ export const useLiff = () => {
       try {
         setIsLoading(true);
         
-        // LIFF IDは環境変数から取得
-        const liffId = import.meta.env.VITE_LIFF_ID;
+        // 開発環境かどうかを判定
+        const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
         
-        if (!liffId) {
-          throw new Error('LIFF IDが設定されていません');
-        }
-
-        if (!window.liff) {
-          throw new Error('LIFF SDKが読み込まれていません');
-        }
-
-        // LIFF初期化
-        await window.liff.init({ liffId });
-        setIsLiffReady(true);
-
-        // ログイン状態をチェック
-        if (window.liff.isLoggedIn()) {
-          setIsLoggedIn(true);
+        if (isDevelopment) {
+          // 開発環境：liffServiceのモック実装を使用
+          console.log('Development mode: Using liffService mock implementation');
           
-          // プロフィール情報を取得
-          const userProfile = await window.liff.getProfile();
-          setProfile(userProfile);
+          await liffService.ready();
+          const loggedIn = liffService.isLoggedIn();
+          setIsLoggedIn(loggedIn);
+          
+          if (loggedIn) {
+            const userProfile = await liffService.getProfile();
+            setProfile(userProfile);
+          }
+          
+          setIsLiffReady(true);
         } else {
-          setIsLoggedIn(false);
+          // 本番環境：実際のLIFF SDKを使用
+          const liffId = import.meta.env.VITE_LIFF_ID;
+          
+          if (!liffId) {
+            throw new Error('LIFF IDが設定されていません');
+          }
+
+          if (!window.liff) {
+            throw new Error('LIFF SDKが読み込まれていません');
+          }
+
+          // LIFF初期化
+          await window.liff.init({ liffId });
+          setIsLiffReady(true);
+
+          // ログイン状態をチェック
+          if (window.liff.isLoggedIn()) {
+            setIsLoggedIn(true);
+            
+            // プロフィール情報を取得
+            const userProfile = await window.liff.getProfile();
+            setProfile(userProfile);
+          } else {
+            setIsLoggedIn(false);
+          }
         }
 
       } catch (err: any) {
@@ -101,6 +121,24 @@ export const useLiff = () => {
     }
   };
 
+  const getAccessToken = async () => {
+    try {
+      return await liffService.getAccessToken();
+    } catch (error) {
+      console.error('Failed to get access token:', error);
+      return null;
+    }
+  };
+
+  const getIDToken = async () => {
+    try {
+      return await liffService.getIDToken();
+    } catch (error) {
+      console.error('Failed to get ID token:', error);
+      return null;
+    }
+  };
+
   return {
     isLiffReady,
     isLoggedIn,
@@ -111,6 +149,8 @@ export const useLiff = () => {
     logout,
     closeWindow,
     sendMessage,
+    getAccessToken,
+    getIDToken,
     isInClient: window.liff?.isInClient() || false,
   };
 };

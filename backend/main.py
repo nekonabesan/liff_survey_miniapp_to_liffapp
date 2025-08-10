@@ -1,14 +1,87 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import uvicorn
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import os
+import httpx
+import json
 from contextlib import asynccontextmanager
 
-# Firestore クライアント（本番環境用）
+# セキュリティスキーム
+security = HTTPBearer(auto_error=False)
+
+# LINE IDToken検証エンドポイント
+LINE_ID_TOKEN_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
+
+# IDToken検証結果のモデル
+class LineUser(BaseModel):
+    userId: str
+    displayName: str
+    pictureUrl: Optional[str] = None
+    statusMessage: Optional[str] = None
+
+# IDToken検証関数
+async def verify_line_id_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[LineUser]:
+    """LINE IDTokenを検証してユーザー情報を返す"""
+    
+    # 開発環境の場合、モックユーザーを返す
+    if os.getenv("ENVIRONMENT") == "development" or not credentials:
+        return LineUser(
+            userId="U_mock_user_123",
+            displayName="Mock Development User",
+            pictureUrl="https://via.placeholder.com/150",
+            statusMessage="Development mode user"
+        )
+    
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="認証トークンが必要です"
+        )
+    
+    id_token = credentials.credentials
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                LINE_ID_TOKEN_VERIFY_URL,
+                data={
+                    "id_token": id_token,
+                    "client_id": os.getenv("LINE_CHANNEL_ID", "")  # LINEチャンネルIDが必要
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="無効なIDTokenです"
+                )
+            
+            user_data = response.json()
+            
+            return LineUser(
+                userId=user_data.get("sub"),
+                displayName=user_data.get("name", "Unknown User"),
+                pictureUrl=user_data.get("picture"),
+                statusMessage=None  # IDTokenにはstatusMessageは含まれない
+            )
+            
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="IDToken検証に失敗しました"
+        )
+    except Exception as e:
+        print(f"IDToken verification error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="IDToken検証に失敗しました"
+        )
 try:
     # Cloud Functions環境では自動的に認証される
     from google.cloud import firestore
@@ -83,10 +156,10 @@ class SurveyResultsResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 起動時の処理
-    print("🚀 FastAPI Survey API starting up...")
+    print("FastAPI Survey API starting up...")
     yield
     # 終了時の処理
-    print("👋 FastAPI Survey API shutting down...")
+    print("FastAPI Survey API shutting down...")
 
 app = FastAPI(
     title="LIFF Survey API",
@@ -120,10 +193,11 @@ async def health_check():
 
 # ユーザーの回答状態確認
 @app.post("/user/status", response_model=ApiResponse)
-async def check_user_status(user_request: UserStatusRequest):
+async def check_user_status(user_request: UserStatusRequest, current_user: LineUser = Depends(verify_line_id_token)):
     """ユーザーの回答状態を確認"""
     try:
-        user_id = user_request.userId
+        # 認証されたユーザーIDを使用
+        user_id = current_user.userId
         
         if FIRESTORE_AVAILABLE:
             # Firestoreでユーザーの回答を検索
@@ -170,7 +244,7 @@ async def check_user_status(user_request: UserStatusRequest):
         return ApiResponse(
             success=True,
             message="ユーザー状態を取得しました",
-            data=user_status.dict()
+            data=user_status.model_dump()
         )
 
     except Exception as e:
@@ -182,9 +256,16 @@ async def check_user_status(user_request: UserStatusRequest):
 
 # ユーザーの最新回答取得
 @app.get("/user/{user_id}/latest-response", response_model=ApiResponse)
-async def get_user_latest_response(user_id: str):
+async def get_user_latest_response(user_id: str, current_user: LineUser = Depends(verify_line_id_token)):
     """ユーザーの最新回答を取得"""
     try:
+        # 認証されたユーザーのみが自分の回答を取得可能
+        if user_id != current_user.userId:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="他のユーザーの回答は取得できません"
+            )
+        
         if FIRESTORE_AVAILABLE:
             # Firestoreから最新の回答を取得
             query = db.collection('survey_responses').where('userId', '==', user_id).order_by('createdAt', direction=firestore.Query.DESCENDING).limit(1)
@@ -196,7 +277,7 @@ async def get_user_latest_response(user_id: str):
                 response = SurveyResponse(**data)
                 return ApiResponse(
                     success=True,
-                    data=response.dict()
+                    data=response.model_dump()
                 )
             else:
                 return ApiResponse(
@@ -212,7 +293,7 @@ async def get_user_latest_response(user_id: str):
                 response = SurveyResponse(**latest_response)
                 return ApiResponse(
                     success=True,
-                    data=response.dict()
+                    data=response.model_dump()
                 )
             else:
                 return ApiResponse(
@@ -229,13 +310,15 @@ async def get_user_latest_response(user_id: str):
 
 # アンケート回答の送信
 @app.post("/survey/submit", response_model=ApiResponse)
-async def submit_survey(survey_data: SurveyRequest):
+async def submit_survey(survey_data: SurveyRequest, current_user: LineUser = Depends(verify_line_id_token)):
     """アンケート回答を保存"""
     try:
-        # データの準備
+        # データの準備（認証されたユーザー情報を使用）
         timestamp = datetime.now().isoformat()
         response_data = {
-            **survey_data.dict(),
+            **survey_data.model_dump(),
+            "userId": current_user.userId,
+            "displayName": current_user.displayName,
             "timestamp": timestamp,
             "createdAt": timestamp
         }
@@ -268,6 +351,19 @@ async def submit_survey(survey_data: SurveyRequest):
 async def get_survey_results(limit: int = 100, offset: int = 0):
     """アンケート結果を取得（管理者用）"""
     try:
+        # パラメータのバリデーション
+        if limit < 1 or limit > 1000:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="limitは1から1000の間で指定してください"
+            )
+        
+        if offset < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="offsetは0以上で指定してください"
+            )
+        
         if FIRESTORE_AVAILABLE:
             # Firestoreから取得
             query = db.collection('survey_responses').order_by('createdAt', direction=firestore.Query.DESCENDING)
@@ -301,6 +397,9 @@ async def get_survey_results(limit: int = 100, offset: int = 0):
             )
         )
 
+    except HTTPException:
+        # HTTPExceptionは再度raiseして適切な処理に委ねる
+        raise
     except Exception as e:
         print(f"Error fetching survey results: {str(e)}")
         raise HTTPException(
@@ -370,7 +469,7 @@ async def http_exception_handler(request, exc):
             success=False,
             error=exc.detail,
             message=exc.detail
-        ).dict()
+        ).model_dump()
     )
 
 @app.exception_handler(Exception)
@@ -382,15 +481,14 @@ async def general_exception_handler(request, exc):
             success=False,
             error="Internal server error",
             message="予期しないエラーが発生しました"
-        ).dict()
+        ).model_dump()
     )
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8080))
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=port,
-        log_level="info",
-        reload=True
+        log_level="info"
     )

@@ -16,6 +16,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true,
+    host: '0.0.0.0', // Docker対応
+    open: false, // Dockerでは自動ブラウザ起動を無効
+    watch: {
+      usePolling: true, // Docker環境でのファイル監視
+    },
+    hmr: {
+      port: 24678, // HMRポート
+    },
   },
 })
