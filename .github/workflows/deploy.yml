@@ -105,16 +105,11 @@ jobs:
     - name: Deploy to Firebase Hosting
       working-directory: ./frontend
       run: |
-        # Create temporary service account key file
-        echo "${{ secrets.GCP_CREDENTIALS }}" > service-account-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS="service-account-key.json"
-        
-        # Deploy using service account authentication
+        # Install Firebase CLI
         npm install -g firebase-tools
-        firebase deploy --only hosting --non-interactive
         
-        # Clean up key file
-        rm service-account-key.json
+        # Deploy using Firebase token
+        firebase deploy --only hosting --non-interactive --token "${{ secrets.FIREBASE_TOKEN }}"
 
     - name: Display deployment URLs
       run: |
