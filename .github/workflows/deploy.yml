@@ -76,7 +76,7 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
-        credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
     - name: Configure Docker for Google Cloud
       run: gcloud auth configure-docker
@@ -106,7 +106,7 @@ jobs:
       working-directory: ./frontend
       run: |
         # Create temporary service account key file
-        echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" > service-account-key.json
+        echo "${{ secrets.GCP_CREDENTIALS }}" > service-account-key.json
         export GOOGLE_APPLICATION_CREDENTIALS="service-account-key.json"
         
         # Deploy using service account authentication

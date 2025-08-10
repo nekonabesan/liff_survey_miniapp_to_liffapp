@@ -10,6 +10,11 @@ on:
     paths:
       - 'backend/**'
 
+env:
+  PROJECT_ID: liff-survey-app-20250809-282a6
+  CLOUD_RUN_SERVICE: liff-survey-api
+  CLOUD_RUN_REGION: asia-northeast1
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -48,11 +53,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Google Cloud CLI
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
 
     - name: Configure Docker for GCR
       run: gcloud auth configure-docker
@@ -60,20 +67,20 @@ jobs:
     - name: Build Docker image
       run: |
         cd backend
-        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/liff-survey-api:${{ github.sha }} .
-        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/liff-survey-api:latest .
+        docker build -t gcr.io/${{ env.PROJECT_ID }}/liff-survey-api:${{ github.sha }} .
+        docker build -t gcr.io/${{ env.PROJECT_ID }}/liff-survey-api:latest .
 
     - name: Push Docker image
       run: |
-        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/liff-survey-api:${{ github.sha }}
-        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/liff-survey-api:latest
+        docker push gcr.io/${{ env.PROJECT_ID }}/liff-survey-api:${{ github.sha }}
+        docker push gcr.io/${{ env.PROJECT_ID }}/liff-survey-api:latest
 
     - name: Deploy to Cloud Run
       run: |
-        gcloud run deploy liff-survey-api \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/liff-survey-api:${{ github.sha }} \
+        gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+          --image gcr.io/${{ env.PROJECT_ID }}/liff-survey-api:${{ github.sha }} \
           --platform managed \
-          --region asia-northeast1 \
+          --region ${{ env.CLOUD_RUN_REGION }} \
           --allow-unauthenticated \
           --port 8080 \
           --memory 512Mi \
