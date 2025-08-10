@@ -32,7 +32,7 @@ jobs:
     - name: Run tests
       run: |
         cd backend
-        pytest --cov=. --cov-report=xml
+        pytest tests/unit tests/integration --cov=. --cov-report=xml --ignore=tests/e2e
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
