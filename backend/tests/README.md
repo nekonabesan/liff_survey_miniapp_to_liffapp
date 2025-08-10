@@ -42,18 +42,19 @@ tests/
 
 ### フロントエンド連携テスト
 バックエンドAPIテストに加えて、フロントエンド側でもPlaywrightによるE2Eテストを実施：
-- **ローカル環境**: `http://localhost:8001` を対象としたAPI統合テスト
-- **本番環境**: Firebase Functions上のAPIを対象としたテスト
+- **ローカル環境**: `http://localhost:8001` のPython FastAPIサーバーを対象
+- **本番環境**: Firebase Functions上のAPIを対象
 - **フロントエンド**: ReactアプリからのAPI呼び出しテスト
 
 ## 実行方法
 
 ### 全テスト実行
 ```bash
-# docker-compose経由
-docker-compose run --rm test-backend
+# Docker Compose経由（推奨）
+make test-backend
 
 # 直接実行
+cd backend
 python -m pytest
 ```
 
@@ -105,9 +106,9 @@ python -m pytest -n auto
 - `MULTIPLE_TEST_DATA`: 複数件テスト用データ
 
 ### テスト環境変数
-- `TEST_BASE_URL`: APIベースURL（デフォルト: http://localhost:8080）
-- `TEST_PROJECT_ID`: FirestoreプロジェクトID（デフォルト: demo-project）
-- `FIRESTORE_EMULATOR_HOST`: Firestoreエミュレータホスト
+- `TEST_BASE_URL`: APIベースURL（デフォルト: http://localhost:8000）
+- `FIRESTORE_EMULATOR_HOST`: Firestoreエミュレータホスト（デフォルト: localhost:8080）
+- `PROJECT_ID`: FirestoreプロジェクトID（デフォルト: demo-project）
 
 ## カバレッジ目標
 
@@ -139,12 +140,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Run Unit Tests
-        run: docker-compose run --rm test-backend pytest tests/unit/
+        run: make test-backend
       - name: Run Integration Tests
-        run: docker-compose run --rm test-backend pytest tests/integration/
+        run: cd backend && python -m pytest tests/integration/ -v
       - name: Run E2E Tests (main branch only)
         if: github.ref == 'refs/heads/main'
-        run: docker-compose run --rm test-backend pytest tests/e2e/
+        run: cd backend && python -m pytest tests/e2e/ -v
 ```
 
 ## トラブルシューティング
@@ -160,7 +161,9 @@ jobs:
 2. **Firestore接続エラー**
    ```bash
    # エミュレータの起動確認
-   docker-compose ps firestore
+   make logs
+   # または
+   docker ps | grep firestore
    ```
 
 3. **テストデータの競合**
