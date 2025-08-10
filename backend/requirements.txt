@@ -5,3 +5,7 @@ google-cloud-firestore==2.21.0
 python-multipart==0.0.20
 requests==2.32.3
 httpx==0.28.1
+
+# Testing dependencies
+pytest==8.4.1
+pytest-asyncio==0.24.1
