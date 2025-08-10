@@ -57,8 +57,7 @@ class TestSurveyResultsEndpoint:
     
     def test_get_results_empty_collection(self, client: TestClient, mock_firestore):
         """空のコレクションのテスト"""
-        # 空の結果をモック
-        mock_firestore.collection.return_value.stream.return_value = []
+        # 空の結果は既にデフォルトで設定されている
         
         response = client.get("/survey/results")
         assert response.status_code == 200
