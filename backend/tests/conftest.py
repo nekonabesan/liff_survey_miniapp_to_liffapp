@@ -36,9 +36,30 @@ def mock_firestore():
             mock_db = Mock()
             mock_firestore_module.Client.return_value = mock_db
             
-            # dbをモックのインスタンスに設定
-            with patch('main.db', mock_db):
+            # main.dbをモックのインスタンスに設定
+            with patch.object(sys.modules['main'], 'db', mock_db):
                 yield mock_db
+
+
+@pytest.fixture(scope="function") 
+def mock_db():
+    """Firestoreデータベースインスタンスのモック（直接参照用）"""
+    mock_db = Mock()
+    with patch.object(sys.modules['main'], 'db', mock_db):
+        yield mock_db
+
+
+@pytest.fixture(scope="function")
+def mock_line_user():
+    """LINEユーザー認証のモック"""
+    mock_user = Mock()
+    mock_user.userId = "test-user-123"
+    mock_user.displayName = "テストユーザー"
+    mock_user.pictureUrl = "https://example.com/picture.jpg"
+    mock_user.statusMessage = "テストステータス"
+    
+    with patch('main.verify_line_id_token', return_value=mock_user):
+        yield mock_user
 
 
 @pytest.fixture(scope="function")

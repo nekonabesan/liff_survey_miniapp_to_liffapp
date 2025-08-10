@@ -82,6 +82,12 @@ async def verify_line_id_token(credentials: Optional[HTTPAuthorizationCredential
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="IDToken検証に失敗しました"
         )
+
+# グローバル変数の初期化
+db = None
+FIRESTORE_AVAILABLE = False
+mock_storage: List[Dict[str, Any]] = []
+
 try:
     # Cloud Functions環境では自動的に認証される
     from google.cloud import firestore
@@ -91,13 +97,9 @@ try:
 except ImportError:
     print("Warning: google-cloud-firestore not installed. Using mock storage.")
     FIRESTORE_AVAILABLE = False
-    # モック用のインメモリストレージ
-    mock_storage: List[Dict[str, Any]] = []
 except Exception as e:
     print(f"Warning: Failed to initialize Firestore client: {e}. Using mock storage.")
     FIRESTORE_AVAILABLE = False
-    # モック用のインメモリストレージ
-    mock_storage: List[Dict[str, Any]] = []
 
 # Pydanticモデル
 class UserStatusRequest(BaseModel):

@@ -24,6 +24,7 @@ firebase-debug.log*
 
 # Google Cloud
 .gcloudignore
+.key/
 
 # Python
 __pycache__/
