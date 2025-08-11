@@ -469,6 +469,19 @@ firebase functions:log
    - 依存関係が正しくインストールされているか確認
    - Node.js/Python のバージョンを確認
 
-## ライセンス
+## Firebase Token作成
+```
+firebase login
+```
 
-MIT License
+コンソールに表示されたURLを押下
+
+ブラウザ上でログイン認証
+
+```
+firebase login:ci
+```
+
+コンソール上にトークンが表示される
+
+トークンをGithubリポジトリのSetting＞Actions secrets and variables＞actionsから登録
