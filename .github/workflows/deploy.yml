@@ -81,18 +81,20 @@ jobs:
     - name: Configure Docker for Google Cloud
       run: gcloud auth configure-docker
 
-    - name: Deploy to Cloud Run
-      working-directory: ./backend
-      run: |
-        gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
-          --source . \
-          --platform managed \
-          --region ${{ env.CLOUD_RUN_REGION }} \
-          --allow-unauthenticated \
-          --memory 1Gi \
-          --cpu 1 \
-          --timeout 300 \
-          --quiet
+  #---------------------------------------------------------------
+  # Backend deploy to Cloud Run is disabled. To re-enable, uncomment below.
+  # - name: Deploy to Cloud Run
+  #   working-directory: ./backend
+  #   run: |
+  #     gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+  #       --source . \
+  #       --platform managed \
+  #       --region ${{ env.CLOUD_RUN_REGION }} \
+  #       --allow-unauthenticated \
+  #       --memory 1Gi \
+  #       --cpu 1 \
+  #       --timeout 300 \
+  #       --quiet
 
     - name: Install frontend dependencies
       working-directory: ./frontend
